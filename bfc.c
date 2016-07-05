@@ -44,7 +44,7 @@ int main(int argc, char **argv){
         0x1000,
     };
 
-    int out = open("a.out",O_CREAT|O_WRONLY,0666);
+    int out = open("a.out",O_CREAT|O_WRONLY,S_IRWXU);
     write(out,&ehdr,sizeof(Elf32_Ehdr));
     write(out,&phdr,sizeof(Elf32_Phdr));
 
