@@ -44,6 +44,9 @@ char loop_end[]   = {0x8b,0x04,0x24,           /*mov   eax,  [esp] */
 char call_exit[]  = {0xb8,0x01,0x00,0x00,0x00, /*mov   eax,  1     */
                      0xbb,0x00,0x00,0x00,0x00, /*mov   ebx,  0     */
                      0xcd,0x80};               /*int   0x80        */
+char prelude[]    = {0xbc,0x00,0x00,0x00,0x00};/*mov   esp, int32_t*/
+
+char tape[100];
 
 int main(int argc, char **argv){
     char text[MAX_BIN_LEN];
@@ -56,6 +59,8 @@ int main(int argc, char **argv){
 
     entry = org + sizeof(Elf32_Ehdr) + 1 * sizeof(Elf32_Phdr);
 
+    memcpy(txt_ptr,prelude,sizeof(prelude));
+    txt_ptr += sizeof(prelude);
     char input;
     while((input = getchar()) != -1){
         switch(input){
@@ -103,6 +108,9 @@ int main(int argc, char **argv){
     memcpy(txt_ptr,call_exit,sizeof(call_exit));
     txt_ptr += sizeof(call_exit);
 
+    *(int32_t*)(text + 1) = entry + (txt_ptr - text);
+
+
     Elf32_Ehdr ehdr = {
         {0x7F,'E','L','F',ELFCLASS32,ELFDATA2LSB,EV_CURRENT,0,0,0,0,0,0,0,0,0},
         ET_EXEC,
@@ -127,7 +135,7 @@ int main(int argc, char **argv){
         org,
         sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr) + (txt_ptr - text),
         sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr) + (txt_ptr - text),
-        PF_R | PF_X,
+        PF_R | PF_X | PF_W,
         0x1000,
     };
 
@@ -136,5 +144,6 @@ int main(int argc, char **argv){
     write(out,&phdr,sizeof(Elf32_Phdr));
 
     write(out,text,txt_ptr-text);
+    write(out,tape,sizeof(tape));
     close(out);
 }
