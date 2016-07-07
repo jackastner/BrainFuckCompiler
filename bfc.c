@@ -3,8 +3,10 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #define MAX_BIN_LEN 1024
+#define MAX_JUMPS 100
 
 int org = 0x08048000;
 
@@ -30,6 +32,15 @@ char print_char[] = {0xbb,0x01,0x00,0x00,0x00, /*mov   ebx,  1     */
                      0xb8,0x04,0x00,0x00,0x00, /*mov   eax,  4     */
                      0xcd,0x80};               /*int   0x80        */
 
+
+char loop_start[] = {0x8b,0x04,0x24,           /*mov   eax,  [esp] */
+                     0x85,0xc0,                /*test  eax,  eax   */
+                     0x74,0x00};               /*je    rel         */
+
+char loop_end[]   = {0x8b,0x04,0x24,           /*mov   eax,  [esp] */
+                     0x85,0xc0,                /*test  eax,  eax   */
+                     0x75,0x00};               /*jne   rel         */
+
 char call_exit[]  = {0xb8,0x01,0x00,0x00,0x00, /*mov   eax,  1     */
                      0xbb,0x00,0x00,0x00,0x00, /*mov   ebx,  0     */
                      0xcd,0x80};               /*int   0x80        */
@@ -37,6 +48,9 @@ char call_exit[]  = {0xb8,0x01,0x00,0x00,0x00, /*mov   eax,  1     */
 int main(int argc, char **argv){
     char text[MAX_BIN_LEN];
     char *txt_ptr = text;
+
+    int8_t *loop_jmps[MAX_JUMPS];
+    int8_t **loop_jmps_ptr = loop_jmps;
 
     Elf32_Off entry;
 
@@ -70,7 +84,18 @@ int main(int argc, char **argv){
                 txt_ptr += sizeof(read_char);
                 break;
             case '[':
+                memcpy(txt_ptr,loop_start,sizeof(loop_start));
+                txt_ptr += sizeof(loop_start);
+                *loop_jmps_ptr = (int8_t*) txt_ptr - 1;
+                loop_jmps_ptr++;
+                break;
             case ']':
+                memcpy(txt_ptr,loop_end,sizeof(loop_end));
+                txt_ptr += sizeof(loop_end);
+                loop_jmps_ptr--;
+                int8_t offset = ((char*) *loop_jmps_ptr) - txt_ptr + 1;
+                *(txt_ptr - 1) = offset;
+                **loop_jmps_ptr = -offset;
                 break;
         }
     }
