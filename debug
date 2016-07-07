@@ -1,0 +1,4 @@
+#! /usr/bin/gdb -x
+file ./a.out
+break *0x8048054
+layout asm
