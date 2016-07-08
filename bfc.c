@@ -5,46 +5,46 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define MAX_BIN_LEN 1024
+#define MAX_BIN_LEN 65535
 #define MAX_JUMPS 100
 
 unsigned int org = 0x08048000;
 
 
 
-unsigned char move_right[] = {0x44};                    /*inc   esp         */
+unsigned char move_right[] = {0x44};                              /*inc   esp         */
 
-unsigned char move_left[]  = {0x4c};                    /*dec   esp         */
+unsigned char move_left[]  = {0x4c};                              /*dec   esp         */
 
-unsigned char inc_cell[]   = {0xfe,0x04,0x24};          /*inc   [esp]       */
+unsigned char inc_cell[]   = {0xfe,0x04,0x24};                    /*inc   [esp]       */
 
-unsigned char dec_cell[]   = {0xfe,0x0c,0x24};          /*dec   [esp]       */
+unsigned char dec_cell[]   = {0xfe,0x0c,0x24};                    /*dec   [esp]       */
 
-unsigned char read_char[]  = {0xbb,0x00,0x00,0x00,0x00, /*mov   ebx,  0     */
-                              0x89,0xe1,                /*mov   ecx,  esp   */
-                              0xba,0x01,0x00,0x00,0x00, /*mov   edx,  1     */
-                              0xb8,0x03,0x00,0x00,0x00, /*mov   eax,  3     */
-                              0xcd,0x80};               /*int   0x80        */
+unsigned char read_char[]  = {0xbb,0x00,0x00,0x00,0x00,           /*mov   ebx,  0     */
+                              0x89,0xe1,                          /*mov   ecx,  esp   */
+                              0xba,0x01,0x00,0x00,0x00,           /*mov   edx,  1     */
+                              0xb8,0x03,0x00,0x00,0x00,           /*mov   eax,  3     */
+                              0xcd,0x80};                         /*int   0x80        */
 
-unsigned char print_char[] = {0xbb,0x01,0x00,0x00,0x00, /*mov   ebx,  1     */
-                              0x89,0xe1,                /*mov   ecx,  esp   */
-                              0xba,0x01,0x00,0x00,0x00, /*mov   edx,  1     */
-                              0xb8,0x04,0x00,0x00,0x00, /*mov   eax,  4     */
-                              0xcd,0x80};               /*int   0x80        */
+unsigned char print_char[] = {0xbb,0x01,0x00,0x00,0x00,           /*mov   ebx,  1     */
+                              0x89,0xe1,                          /*mov   ecx,  esp   */
+                              0xba,0x01,0x00,0x00,0x00,           /*mov   edx,  1     */
+                              0xb8,0x04,0x00,0x00,0x00,           /*mov   eax,  4     */
+                              0xcd,0x80};                         /*int   0x80        */
 
 
-unsigned char loop_start[] = {0x8a,0x04,0x24,           /*mov   eax,  [esp] */
-                              0x85,0xc0,                /*test  eax,  eax   */
-                              0x74,0x00};               /*je    rel         */
+unsigned char loop_start[] = {0x8a,0x04,0x24,                     /*mov   eax,  [esp] */
+                              0x85,0xc0,                          /*test  eax,  eax   */
+                              0x0f,0x84,0x00,0x00,0x00,0x00};     /*je    int32_t     */
 
-unsigned char loop_end[]   = {0x8a,0x04,0x24,           /*mov   eax,  [esp] */
-                              0x85,0xc0,                /*test  eax,  eax   */
-                              0x75,0x00};               /*jne   rel         */
+unsigned char loop_end[]   = {0x8a,0x04,0x24,                     /*mov   eax,  [esp] */
+                              0x85,0xc0,                          /*test  eax,  eax   */
+                              0x0f,0x85,0x00,0x00,0x00,0x00};     /*jne   int32_t     */
 
-unsigned char call_exit[]  = {0xb8,0x01,0x00,0x00,0x00, /*mov   eax,  1     */
-                              0xbb,0x00,0x00,0x00,0x00, /*mov   ebx,  0     */
-                              0xcd,0x80};               /*int   0x80        */
-unsigned char prelude[]    = {0xbc,0x00,0x00,0x00,0x00};/*mov   esp, int32_t*/
+unsigned char call_exit[]  = {0xb8,0x01,0x00,0x00,0x00,           /*mov   eax,  1     */
+                              0xbb,0x00,0x00,0x00,0x00,           /*mov   ebx,  0     */
+                              0xcd,0x80};                         /*int   0x80        */
+unsigned char prelude[]    = {0xbc,0x00,0x00,0x00,0x00};          /*mov   esp, int32_t*/
 
 unsigned char tape[100];
 
@@ -52,8 +52,8 @@ int main(){
     unsigned char text[MAX_BIN_LEN];
     unsigned char *txt_ptr = text;
 
-    int8_t *loop_jmps[MAX_JUMPS];
-    int8_t **loop_jmps_ptr = loop_jmps;
+    int32_t *loop_jmps[MAX_JUMPS];
+    int32_t **loop_jmps_ptr = loop_jmps;
 
     Elf32_Off entry;
 
@@ -91,17 +91,16 @@ int main(){
             case '[':
                 memcpy(txt_ptr,loop_start,sizeof(loop_start));
                 txt_ptr += sizeof(loop_start);
-                *loop_jmps_ptr = (int8_t*) txt_ptr - 1;
+                *loop_jmps_ptr = (int32_t*) txt_ptr - 1;
                 loop_jmps_ptr++;
                 break;
             case ']':
                 memcpy(txt_ptr,loop_end,sizeof(loop_end));
                 txt_ptr += sizeof(loop_end);
                 loop_jmps_ptr--;
-                int8_t offset = ((unsigned char*) *loop_jmps_ptr) - txt_ptr + 1;
-                printf("%x\n",offset);
-                *(txt_ptr - 1) = -offset;
-                **loop_jmps_ptr = offset;
+                int32_t offset = ((unsigned char*) (*loop_jmps_ptr + 1)) - txt_ptr;
+                *((int32_t*)txt_ptr - 1) = offset;
+                **loop_jmps_ptr = -offset;
                 break;
         }
     }
