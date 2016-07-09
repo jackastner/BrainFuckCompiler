@@ -5,52 +5,48 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define MAX_BIN_LEN 65535
-#define MAX_JUMPS 100
+#include "bfc.h"
+
+#define MAX_BIN_LEN 655350
+#define MAX_JUMPS 1000
 
 unsigned int org = 0x08048000;
 
+typedef struct {
+    char op;
+    int times;
+} rle_bf_op;
 
+int read_program(rle_bf_op *prog){
+    char input;
+    int len = 0;
+    while((input = getchar()) != -1){
+        if(input != '+' && input != '-' &&
+           input != '>' && input != '<' &&
+           input != '[' && input != ']' &&
+           input != ',' && input != '.'){
+            continue;
+        }
 
-unsigned char move_right[] = {0x44};                              /*inc   esp         */
-
-unsigned char move_left[]  = {0x4c};                              /*dec   esp         */
-
-unsigned char inc_cell[]   = {0xfe,0x04,0x24};                    /*inc   [esp]       */
-
-unsigned char dec_cell[]   = {0xfe,0x0c,0x24};                    /*dec   [esp]       */
-
-unsigned char read_char[]  = {0xbb,0x00,0x00,0x00,0x00,           /*mov   ebx,  0     */
-                              0x89,0xe1,                          /*mov   ecx,  esp   */
-                              0xba,0x01,0x00,0x00,0x00,           /*mov   edx,  1     */
-                              0xb8,0x03,0x00,0x00,0x00,           /*mov   eax,  3     */
-                              0xcd,0x80};                         /*int   0x80        */
-
-unsigned char print_char[] = {0xbb,0x01,0x00,0x00,0x00,           /*mov   ebx,  1     */
-                              0x89,0xe1,                          /*mov   ecx,  esp   */
-                              0xba,0x01,0x00,0x00,0x00,           /*mov   edx,  1     */
-                              0xb8,0x04,0x00,0x00,0x00,           /*mov   eax,  4     */
-                              0xcd,0x80};                         /*int   0x80        */
-
-
-unsigned char loop_start[] = {0x8a,0x04,0x24,                     /*mov   eax,  [esp] */
-                              0x85,0xc0,                          /*test  eax,  eax   */
-                              0x0f,0x84,0x00,0x00,0x00,0x00};     /*je    int32_t     */
-
-unsigned char loop_end[]   = {0x8a,0x04,0x24,                     /*mov   eax,  [esp] */
-                              0x85,0xc0,                          /*test  eax,  eax   */
-                              0x0f,0x85,0x00,0x00,0x00,0x00};     /*jne   int32_t     */
-
-unsigned char call_exit[]  = {0xb8,0x01,0x00,0x00,0x00,           /*mov   eax,  1     */
-                              0xbb,0x00,0x00,0x00,0x00,           /*mov   ebx,  0     */
-                              0xcd,0x80};                         /*int   0x80        */
-unsigned char prelude[]    = {0xbc,0x00,0x00,0x00,0x00};          /*mov   esp, int32_t*/
-
-unsigned char tape[100];
+        if(prog->op != input){
+            len++;
+            if(prog->op){
+                prog++;
+            }
+            prog->op=input;
+        }
+        prog->times++;
+    }
+    return len;
+}
 
 int main(){
-    unsigned char text[MAX_BIN_LEN];
-    unsigned char *txt_ptr = text;
+
+    rle_bf_op input[10000];
+    int input_len;
+
+    uint8_t text[MAX_BIN_LEN];
+    uint8_t *txt_ptr = text;
 
     int32_t *loop_jmps[MAX_JUMPS];
     int32_t **loop_jmps_ptr = loop_jmps;
@@ -59,48 +55,116 @@ int main(){
 
     entry = org + sizeof(Elf32_Ehdr) + 1 * sizeof(Elf32_Phdr);
 
+    input_len = read_program(input);
+
     memcpy(txt_ptr,prelude,sizeof(prelude));
     txt_ptr += sizeof(prelude);
-    char input;
-    while((input = getchar()) != -1){
-        switch(input){
+
+    for(int i = 0; i < input_len; i++){
+        switch(input[i].op){
             case '>':
-                memcpy(txt_ptr,move_right,sizeof(move_right));
-                txt_ptr += sizeof(move_right);
+                if(input[i].times==1){
+                    memcpy(txt_ptr,inc_ptr,sizeof(inc_ptr));
+                    txt_ptr += sizeof(inc_ptr);
+                } else if (input[i].times <= 0xff) {
+                    memcpy(txt_ptr,add_ptr8,sizeof(add_ptr8));
+                    txt_ptr += sizeof(add_ptr8);
+                    *(uint8_t*)(txt_ptr-add_ptr8_arg)=(uint8_t)input[i].times;
+                } else {
+                    memcpy(txt_ptr,add_ptr32,sizeof(add_ptr32));
+                    txt_ptr += sizeof(add_ptr32);
+                    *(uint32_t*)(txt_ptr-add_ptr32_arg)=(uint32_t)input[i].times;
+                }
                 break;
+
             case '<':
-                memcpy(txt_ptr,move_left,sizeof(move_left));
-                txt_ptr += sizeof(move_left);
+                if(input[i].times==1){
+                    memcpy(txt_ptr,dec_ptr,sizeof(dec_ptr));
+                    txt_ptr += sizeof(dec_ptr);
+                } else if (input[i].times <= 0xff) {
+                    memcpy(txt_ptr,sub_ptr8,sizeof(sub_ptr8));
+                    txt_ptr += sizeof(sub_ptr8);
+                    *(uint8_t*)(txt_ptr-sub_ptr8_arg)=(uint8_t)input[i].times;
+                } else {
+                    memcpy(txt_ptr,sub_ptr32,sizeof(sub_ptr32));
+                    txt_ptr += sizeof(sub_ptr32);
+                    *(uint32_t*)(txt_ptr-sub_ptr32_arg)=(uint32_t)input[i].times;
+                }
                 break;
+
             case '+':
-                memcpy(txt_ptr,inc_cell,sizeof(inc_cell));
-                txt_ptr += sizeof(inc_cell);
+                if(input[i].times==1){
+                    memcpy(txt_ptr,inc_cell,sizeof(inc_cell));
+                    txt_ptr += sizeof(inc_cell);
+                } else if (input[i].times <= 0xff) {
+                    memcpy(txt_ptr,add_cell8,sizeof(add_cell8));
+                    txt_ptr += sizeof(add_cell8);
+                    *(uint8_t*)(txt_ptr-add_cell8_arg)=(uint8_t)input[i].times;
+                } else {
+                    memcpy(txt_ptr,add_cell32,sizeof(add_cell32));
+                    txt_ptr += sizeof(add_cell32);
+                    *(uint32_t*)(txt_ptr-add_cell32_arg)=(uint32_t)input[i].times;
+                }
                 break;
+
             case '-':
-                memcpy(txt_ptr,dec_cell,sizeof(dec_cell));
-                txt_ptr += sizeof(dec_cell);
+                if(input[i].times==1){
+                    memcpy(txt_ptr,dec_cell,sizeof(dec_cell));
+                    txt_ptr += sizeof(dec_cell);
+                } else if (input[i].times <= 0xff) {
+                    memcpy(txt_ptr,sub_cell8,sizeof(sub_cell8));
+                    txt_ptr += sizeof(sub_cell8);
+                    *(uint8_t*)(txt_ptr-sub_cell8_arg)=(uint8_t)input[i].times;
+                } else {
+                    memcpy(txt_ptr,sub_cell32,sizeof(sub_cell32));
+                    txt_ptr += sizeof(sub_cell32);
+                    *(uint32_t*)(txt_ptr-sub_cell32_arg)=(uint32_t)input[i].times;
+                }
                 break;
+
+
             case '.':
-                memcpy(txt_ptr,print_char,sizeof(print_char));
-                txt_ptr += sizeof(print_char);
+                memcpy(txt_ptr,print_char32,sizeof(print_char32));
+                txt_ptr += sizeof(print_char32);
+                *(uint32_t*)(txt_ptr-print_char32_arg)=(uint32_t)1;
+                input[i].times--;
+                if(input[i].times != 0){
+                    i--;
+                }
                 break;
+
             case ',':
-                memcpy(txt_ptr,read_char,sizeof(read_char));
-                txt_ptr += sizeof(read_char);
+                memcpy(txt_ptr,read_char32,sizeof(read_char32));
+                txt_ptr += sizeof(read_char32);
+                *(uint32_t*)(txt_ptr-read_char32_arg)=(uint32_t)1;
+                input[i].times--;
+                if(input[i].times != 0){
+                    i--;
+                }
                 break;
+
             case '[':
-                memcpy(txt_ptr,loop_start,sizeof(loop_start));
-                txt_ptr += sizeof(loop_start);
-                *loop_jmps_ptr = (int32_t*) txt_ptr - 1;
+                memcpy(txt_ptr,loop_start32,sizeof(loop_start32));
+                txt_ptr += sizeof(loop_start32);
+                *loop_jmps_ptr = (int32_t*)(txt_ptr - loop_start32_arg);
                 loop_jmps_ptr++;
+                input[i].times--;
+                if(input[i].times != 0){
+                    i--;
+                }
                 break;
+
             case ']':
-                memcpy(txt_ptr,loop_end,sizeof(loop_end));
-                txt_ptr += sizeof(loop_end);
+                memcpy(txt_ptr,loop_end32,sizeof(loop_end32));
+                txt_ptr += sizeof(loop_end32);
                 loop_jmps_ptr--;
-                int32_t offset = ((unsigned char*) (*loop_jmps_ptr + 1)) - txt_ptr;
-                *((int32_t*)txt_ptr - 1) = offset;
+                int32_t offset = ((uint8_t*)(*loop_jmps_ptr + 1)) - txt_ptr;
+                *(int32_t*)(txt_ptr - loop_end32_arg) = offset;
                 **loop_jmps_ptr = -offset;
+                input[i].times--;
+                if(input[i].times != 0){
+                    i--;
+                }
                 break;
         }
     }
@@ -109,7 +173,6 @@ int main(){
     txt_ptr += sizeof(call_exit);
 
     *(int32_t*)(text + 1) = entry + (txt_ptr - text);
-
 
     Elf32_Ehdr ehdr = {
         {0x7F,'E','L','F',ELFCLASS32,ELFDATA2LSB,EV_CURRENT,0,0,0,0,0,0,0,0,0},
