@@ -48,8 +48,8 @@ int main(){
     uint8_t text[MAX_BIN_LEN];
     uint8_t *txt_ptr = text;
 
-    int32_t *loop_jmps[MAX_JUMPS];
-    int32_t **loop_jmps_ptr = loop_jmps;
+    void *loop_jmps[MAX_JUMPS];
+    void **loop_jmps_ptr = loop_jmps;
 
     Elf32_Off entry;
 
@@ -155,12 +155,20 @@ int main(){
                 break;
 
             case ']':
-                memcpy(txt_ptr,loop_end32,sizeof(loop_end32));
-                txt_ptr += sizeof(loop_end32);
                 loop_jmps_ptr--;
-                int32_t offset = ((uint8_t*)(*loop_jmps_ptr + 1)) - txt_ptr;
-                *(int32_t*)(txt_ptr - loop_end32_arg) = offset;
-                **loop_jmps_ptr = -offset;
+                int32_t offset8 = ((uint8_t*)(*loop_jmps_ptr) + loop_start32_arg) - txt_ptr - sizeof(loop_end8);
+                if(offset8 >= INT8_MIN && offset8 <= INT8_MAX){
+                    memcpy(txt_ptr,loop_end8,sizeof(loop_end8));
+                    txt_ptr += sizeof(loop_end8);
+                    *(int8_t*)(txt_ptr - loop_end8_arg) = offset8;
+                    *(int32_t*)*loop_jmps_ptr = -offset8;
+                } else {
+                    memcpy(txt_ptr,loop_end32,sizeof(loop_end32));
+                    txt_ptr += sizeof(loop_end32);
+                    int32_t offset32 = ((uint8_t*)(*loop_jmps_ptr) + loop_start32_arg) - txt_ptr;
+                    *(int32_t*)(txt_ptr - loop_end32_arg) = offset32;
+                    *(int32_t*)*loop_jmps_ptr = -offset32;
+                }
                 input[i].times--;
                 if(input[i].times != 0){
                     i--;
