@@ -1,4 +1,10 @@
 #! /usr/bin/gdb -x
+define print-ptr
+    i r esp
+end
+define print-cell
+    x/1xb $sp
+end
 file ./a.out
 break *0x8048054
 layout asm
