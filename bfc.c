@@ -144,9 +144,10 @@ int main(){
                 break;
 
             case '[':
-                memcpy(txt_ptr,loop_start32,sizeof(loop_start32));
-                txt_ptr += sizeof(loop_start32);
-                *loop_jmps_ptr = (int32_t*)(txt_ptr - loop_start32_arg);
+//                memcpy(txt_ptr,loop_start32,sizeof(loop_start32));
+//                txt_ptr += sizeof(loop_start32);
+//                *loop_jmps_ptr = (int32_t*)(txt_ptr - loop_start32_arg);
+                *loop_jmps_ptr = txt_ptr;
                 loop_jmps_ptr++;
                 input[i].times--;
                 if(input[i].times != 0){
@@ -156,18 +157,28 @@ int main(){
 
             case ']':
                 loop_jmps_ptr--;
-                int32_t offset8 = ((uint8_t*)(*loop_jmps_ptr) + loop_start32_arg) - txt_ptr - sizeof(loop_end8);
+//                int32_t offset8 = ((uint8_t*)(*loop_jmps_ptr) + loop_start32_arg) - txt_ptr - sizeof(loop_end8);
+                int32_t offset8 = (uint8_t*)*loop_jmps_ptr - (txt_ptr + sizeof(loop_end8));
                 if(offset8 >= INT8_MIN && offset8 <= INT8_MAX){
+                    memmove((uint8_t*)*loop_jmps_ptr + sizeof(loop_start8),*loop_jmps_ptr,txt_ptr - (uint8_t*)*loop_jmps_ptr);
+                    txt_ptr += sizeof(loop_start8);
+                    memcpy(*loop_jmps_ptr,loop_start8,sizeof(loop_start8));
+                    *((int8_t*)*loop_jmps_ptr + sizeof(loop_start8) - loop_start8_arg)  = -offset8;
+                    
                     memcpy(txt_ptr,loop_end8,sizeof(loop_end8));
                     txt_ptr += sizeof(loop_end8);
                     *(int8_t*)(txt_ptr - loop_end8_arg) = offset8;
-                    *(int32_t*)*loop_jmps_ptr = -offset8;
                 } else {
+                    int32_t offset32 = (uint8_t*)*loop_jmps_ptr - (txt_ptr + sizeof(loop_end32));;
+
+                    memmove((uint8_t*)*loop_jmps_ptr + sizeof(loop_start32),*loop_jmps_ptr,txt_ptr - (uint8_t*)*loop_jmps_ptr);
+                    txt_ptr += sizeof(loop_start32);
+                    memcpy(*loop_jmps_ptr,loop_start32,sizeof(loop_start32));
+                    *((int32_t*)((int8_t*)*loop_jmps_ptr + sizeof(loop_start32) - loop_start32_arg)) = -offset32;
+
                     memcpy(txt_ptr,loop_end32,sizeof(loop_end32));
                     txt_ptr += sizeof(loop_end32);
-                    int32_t offset32 = ((uint8_t*)(*loop_jmps_ptr) + loop_start32_arg) - txt_ptr;
                     *(int32_t*)(txt_ptr - loop_end32_arg) = offset32;
-                    *(int32_t*)*loop_jmps_ptr = -offset32;
                 }
                 input[i].times--;
                 if(input[i].times != 0){

@@ -63,24 +63,24 @@ const int8_t print_char32_arg = 6;
 
 /*Byte code implementations of [*/
 const uint8_t loop_start8[]  = {0x8a,0x04,0x24,                 /*mov  eax,    [esp] */
-                                0x85,0xc0,                      /*test eax,    eax   */
+                                0x84,0xc0,                      /*test eax,    eax   */
                                 0x74,0x00};                     /*je   int8_t        */
 const int8_t loop_start8_arg = 1;
 
 const uint8_t loop_start32[] = {0x8a,0x04,0x24,                 /*mov  eax,    [esp] */
-                                0x85,0xc0,                      /*test eax,    eax   */
+                                0x84,0xc0,                      /*test eax,    eax   */
                                 0x0f,0x84,0x00,0x00,0x00,0x00}; /*je   int32_t       */
 const int8_t loop_start32_arg = 4;
 
 
 /*Byte code implementations of ]*/
 const uint8_t loop_end8[]  = {0x8a,0x04,0x24,                 /*mov  eax,    [esp] */
-                              0x85,0xc0,                      /*test eax,    eax   */
+                              0x84,0xc0,                      /*test eax,    eax   */
                               0x75,0x00};                     /*je   int8_t        */
 const int8_t loop_end8_arg = 1;
 
 const uint8_t loop_end32[] = {0x8a,0x04,0x24,                 /*mov  eax,    [esp] */
-                              0x85,0xc0,                      /*test eax,    eax   */
+                              0x84,0xc0,                      /*test eax,    eax   */
                               0x0f,0x85,0x00,0x00,0x00,0x00}; /*jne  int32_t       */
 const int8_t loop_end32_arg = 4;
 
